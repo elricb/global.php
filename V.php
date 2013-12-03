@@ -64,18 +64,44 @@ class V
         return null;
     }
     
-    public function popTemplate($template, $a1=null, $a2=null)
+    public function popTemplate($template, $a1=array(), $a2=array())
     {
         $newTemplate = (string)$template;
         //$newTemplate = strtr($newTemplate, $a1);
-        $a1 = (array)$a1;
-        $a2 = (array)$a2;
         foreach($a1 as $k => $v){
-            $newTemplate = str_replace("{$k}", $v, $newTemplate);
+            $newTemplate = str_replace("{{$k}}", V::toString($v), $newTemplate);
         }
         foreach($a2 as $k => $v){
-            $newTemplate = str_replace("{$k}", $v, $newTemplate);
+            $newTemplate = str_replace("{{$k}}", V::toString($v), $newTemplate);
         }
         return $newTemplate;
+    }
+    
+    public function popTemplateComplex($template, $a1=array(), $a2=array())
+    {
+        if (! preg_match_all('/{(\w+)}/g', $template, $matches))
+            return $template;
+        
+        $newTemplate = (string)$template;
+        $matches[1] = array_unique($matches[1]);
+        
+        foreach($matches[1] as $k => $v){
+            $matches[1][$v] = explode(".",$v);
+            $v1 = self::array_value($a1,$matches[1][$v]);
+            $v2 = self::array_value($a2,$matches[1][$v]);
+            if ($v1)
+                $newTemplate = str_replace("{{$k}}", V::toString($v1), $newTemplate);
+            if ($v2)
+                $newTemplate = str_replace("{{$k}}", V::toString($v2), $newTemplate);
+        }
+        return $newTemplate;
+    }
+    
+    public function toString($v)
+    {
+        if (is_array($v)) {
+            return json_encode($v);
+        }
+        return (string)$v;
     }
 }
