@@ -77,22 +77,33 @@ class V
         return $newTemplate;
     }
     
-    public function popTemplateComplex($template, $a1=array(), $a2=array())
+    /**
+     * Uses '.' to denote assoc array dimensions and '|' to denote decisions
+     */
+    public function popTemplateComplex($template, $a1=array(), $a2=array(), $blanks=false)
     {
-        if (! preg_match_all('/{(\w+)}/g', $template, $matches))
+        if (! preg_match_all('/{([A-Za-z.0-9\|\-]+)}/', $template, $matches))
             return $template;
         
         $newTemplate = (string)$template;
-        $matches[1] = array_unique($matches[1]);
+        $matches = array_unique($matches[1]);
         
-        foreach($matches[1] as $k => $v){
-            $matches[1][$v] = explode(".",$v);
-            $v1 = self::array_value($a1,$matches[1][$v]);
-            $v2 = self::array_value($a2,$matches[1][$v]);
-            if ($v1)
-                $newTemplate = str_replace("{{$k}}", V::toString($v1), $newTemplate);
-            if ($v2)
-                $newTemplate = str_replace("{{$k}}", V::toString($v2), $newTemplate);
+        foreach($matches as $k => $v){
+            $t = explode("|",$v);
+            $matches[$v] = $t[0];
+            $t = isset($t[1]) ? $t[1] : (($blanks)?"":$v);
+            $matches[$v] = explode(".",$matches[$v]);
+            $v1 = self::array_value($a1,$matches[$v]);
+            $v2 = self::array_value($a2,$matches[$v]);
+            if ($v1) {
+                $newTemplate = str_replace("{{$v}}", V::toString($v1), $newTemplate);
+                continue;
+            }
+            if ($v2) {
+                $newTemplate = str_replace("{{$v}}", V::toString($v2), $newTemplate);
+                continue;
+            }
+            $newTemplate = str_replace("{{$v}}", $t, $newTemplate);
         }
         return $newTemplate;
     }
@@ -100,8 +111,62 @@ class V
     public function toString($v)
     {
         if (is_array($v)) {
-            return json_encode($v);
+            return json_encode($v, defined('JSON_PRETTY_PRINT') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : 0);
         }
         return (string)$v;
+    }
+    
+    public function get_last_error_message()
+    {
+        $temp = error_get_last();
+        if ($temp === null)
+            return "";
+        return $temp["message"];
+    }
+    
+    public function sftp_file($server, $port, $u="", $p="", $file="")
+    {
+        //ssh_exec "dev:ppp@10.10.142.121" "ls \"/var/cron/tabs/www\""
+        //ssh dev:ppp@10.10.142.121 'cd /var/cron/tabs | cat www'
+        //ssh dev:ppp@10.10.142.121:/var/cron/tabs/www
+        //exec("");
+        //return file_get_contents("ssh2.sftp://$u:$p@$server:{$port}{$file}");
+    }
+    
+    public function sftp_file2($server, $port, $u="", $p="", $file="")
+    {
+        $return = array(
+            "err"  => "",
+            "data" => "",
+        );
+        $e = null;
+        $max = 10000;
+        
+        $connection = ssh2_connect($server, $port);
+        if ($connection === false) {
+            $return['err'] = "ssh2_connect connection failure (" . self::get_last_error_message() .")";
+            return $return;
+        }
+        
+        if ($u) {
+            if (ssh2_auth_password($connection, 'username', 'password') === false) {
+                $return['err'] = "ssh2_auth_password login failure (" . self::get_last_error_message() .")";
+                return $return;
+            }
+        }
+        
+        $sftp = ssh2_sftp($connection);
+        
+        $stream = fopen("ssh2.sftp://$sftp/$file", 'r');
+        if (! $stream) {
+            $return['err'] = "fopen failure (" . self::get_last_error_message() .")";
+            return $return;
+        }
+        
+        $return["data"] = fread($stream, $max);
+        
+        fclose($stream);
+        
+        return $return;
     }
 }
