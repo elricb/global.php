@@ -111,7 +111,10 @@ class V
     public function toString($v)
     {
         if (is_array($v)) {
-            return json_encode($v, defined('JSON_PRETTY_PRINT') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : 0);
+            if (defined('JSON_PRETTY_PRINT')) {
+                return json_encode($v, defined('JSON_PRETTY_PRINT') ? JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES : 0);
+            }
+            return print_r($v, true);
         }
         return (string)$v;
     }
