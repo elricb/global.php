@@ -40,28 +40,56 @@ class V
     }
     
     /**
-     * traverses array, returning a valid key value or arg2 on error
-     * arg1 = the array to traverse
-     * arg2 = the value to return if key doesn't exist
-     * arg3+ = the keys to traverse down
+     * fillTemplate simple template conversion
+     * tbd: a file embeding method
+     * @param {string/aarray} source - the source template
+     *      also {"template" : {string} template}
+     * @param {aarray/object/class/string json} struct - keys and values to replace
+     * @return {string} new template
+     * template structure:
+     *      {{var}} insert var value
+     *      {{var.var.var}} insert var chain value
+     *      {{var|default}} insert default on false
+     *      [[var.var: templatecode]] loop through var.var entries
      */
-    private function _get_avalue()
+    public function fillTemplate($template, $a1=array())
     {
-        $arg_list = func_get_args();
-        $a = array_slice($arg_list, 2);
-        $val = $this->_get_avalue_step($arg_list[0], $a);
-        if ($val===null)
-            return $arg_list[1];
-        return $val;
-    }
-    private function _get_avalue_step($arr, $keys)
-    {
-        if (array_key_exists($keys[0],$arr))
-            if (count($keys) > 1)
-                return $this->_get_avalue_step($arr[$keys[0]], array_slice($keys, 1));
-            else 
-                return $arr[$keys[0]];
-        return null;
+        $newTemplate = (string)$template;
+        //$newTemplate = strtr($newTemplate, $a1);
+        
+        $newTemplate = preg_replace_callback(
+            '|\[\[(.+?)\]\]|',
+            function($matches) use ($a1)
+            {
+                $l     = explode(":", $matches[1]);
+                $d     = explode("|", $l[0]);
+                $value = V::array_value($a1, explode(".", $d[0]));
+                $r     = "";
+                
+                foreach($value as $k => $v) {
+                    $r .= V::fillTemplate($l[1], $v);
+                }
+                if (! $r && $d[1])
+                    return $d[1];
+                return $r;
+            },
+            $newTemplate
+        );
+        
+        $newTemplate = preg_replace_callback(
+            '|{{(.*?)}}|',
+            function($matches) use ($a1)
+            {
+                $d     = explode("|", $matches[1]);
+                $value = V::array_value($a1, explode(".", $d[0]));
+                if (! $value && $d[1])
+                    return $d[1];
+                return $value;
+            },
+            $newTemplate
+        );
+        
+        return $newTemplate;
     }
     
     public function popTemplate($template, $a1=array(), $a2=array())
